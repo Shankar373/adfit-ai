@@ -1,0 +1,83 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  name      String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  analyses  Analysis[]
+}
+
+model Analysis {
+  id              String       @id @default(uuid())
+  userId          String?      // Optional for guest mode
+  user            User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adCopy          String?
+  screenshotUrl   String?
+  landingPageUrl  String
+  competitorUrl   String?
+  createdAt       DateTime     @default(now())
+  report          Report?
+  competitor      Competitor?
+  experiments     Experiment[]
+  chats           Chat[]
+}
+
+model Report {
+  id            String   @id @default(uuid())
+  analysisId    String   @unique
+  analysis      Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  score         Int      // 0-100
+  confidence    String   // High, Medium, Low
+  summary       String   // Executive summary
+  details       Json     // Category scores (Headline, Offer, CTA, Trust, Social Proof, Objection Handling, Above-the-fold, Pricing)
+  problems      Json     // Array of recommendations (Problem, Evidence, Explanation, Impact, Suggested Fix, Confidence, Priority, Effort, RICE Score, Region)
+  copywriting   Json     // Suggested copy rewrites (Headline, Subheadline, CTA, Hero, Benefits, FAQ, Testimonials, Guarantee, Pricing Copy)
+  createdAt     DateTime @default(now())
+}
+
+model Competitor {
+  id         String   @id @default(uuid())
+  analysisId String   @unique
+  analysis   Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  data       Json     // Comparison of Headline, Offer, Pricing, Trust, Strengths, etc.
+  createdAt  DateTime @default(now())
+}
+
+model Experiment {
+  id          String   @id @default(uuid())
+  analysisId  String
+  analysis    Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  hypothesis  String
+  variantA    String
+  variantB    String
+  metric      String
+  traffic     String
+  duration    String
+  createdAt   DateTime @default(now())
+}
+
+model Chat {
+  id         String        @id @default(uuid())
+  analysisId String
+  analysis   Analysis      @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  messages   ChatMessage[]
+  createdAt  DateTime      @default(now())
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role      String   // user, assistant
+  content   String
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,112 @@
+[
+  {
+    "id": "c1b1d16f-e78c-4f96-acc6-b601430015f6",
+    "screenshotUrl": "/screenshots/screenshot-c1b1d16f-e78c-4f96-acc6-b601430015f6.png",
+    "landingPageUrl": "http://localhost:3000/",
+    "createdAt": "2026-07-09T17:56:49.044Z",
+    "report": {
+      "score": 65,
+      "confidence": "Medium",
+      "summary": "# Executive Summary: AdFit Audit for AdFit AI | Ad-to-Landing Page Fit Analyzer\n\n## Key Findings\n- **Headline Mismatch (Critical)**: The advertisement promises instant setup and 'no-code deployment', while the landing page immediately funnels users to book a demo call and contact sales.\n- **Offer Inconsistency**: The ad mentions a '14-day free trial', but the pricing table on the landing page displays no trial option, starting directly at $49/month.\n- **Audience Shift**: The ad copy targets freelancer and independent creators, whereas the landing page messaging pivots heavily toward corporate security features and enterprise scale, alienating the primary ad traffic.\n\n## Business Impact & Strategic Next Steps\nBy alignment of these key messaging pathways, we predict a **28% - 35% conversion rate lift**. Eliminating the friction between the ad's micro-promise and the landing page's macro-ask is the highest priority optimization.",
+      "details": {
+        "headline": 45,
+        "offer": 60,
+        "cta": 50,
+        "trust": 75,
+        "socialProof": 80,
+        "objectionHandling": 55,
+        "aboveFold": 40,
+        "pricing": 50
+      },
+      "problems": [
+        {
+          "problem": "Trial Pricing Inconsistency",
+          "evidence": "Ad promises \"14-day Free Trial\", but landing page pricing shows no mention of a free trial and starts with a credit card capture.",
+          "explanation": "Pricing conflicts break user trust immediately, leading to cart abandonment and high bounce rates.",
+          "businessImpact": "Decreases cart conversion by 18%.",
+          "suggestedFix": "Clearly show \"14 days free, then $49/mo\" next to the payment terms.",
+          "confidence": "High",
+          "priority": "High",
+          "impact": 8,
+          "effort": 2,
+          "riceScore": 40,
+          "region": {
+            "x": 20,
+            "y": 65,
+            "width": 60,
+            "height": 15,
+            "label": "Pricing Section"
+          }
+        },
+        {
+          "problem": "Direct Ask Call-to-Action Mismatch",
+          "evidence": "The advertisement copy promises \"Try for Free, Instantly\", but the primary CTA above the fold is \"Book an Enterprise Demo\".",
+          "explanation": "Users click ads expecting immediate access. Forcing them into a high-friction sales demo funnel immediately causes a high bounce rate.",
+          "businessImpact": "Sinks conversion rates by roughly 40% for self-serve traffic.",
+          "suggestedFix": "Implement a split funnel: show \"Start Free Trial\" as the primary action and \"Talk to Sales\" as a secondary option.",
+          "confidence": "High",
+          "priority": "High",
+          "impact": 9,
+          "effort": 3,
+          "riceScore": 30,
+          "region": {
+            "x": 55,
+            "y": 15,
+            "width": 35,
+            "height": 10,
+            "label": "Above-the-fold CTA"
+          }
+        },
+        {
+          "problem": "Headline Core Value Mismatch",
+          "evidence": "Ad headline focuses on \"Automated Ad Fitting in Seconds\", whereas landing page H1 says \"Supercharge Your B2B Marketing Operations\".",
+          "explanation": "The landing page H1 is too generic and fails to echo the specific value proposition that motivated the click.",
+          "businessImpact": "Increases bounce rate by 22% in the first 3 seconds.",
+          "suggestedFix": "Change H1 to \"The Automated Fit Analyzer for Paid Ads\".",
+          "confidence": "Medium",
+          "priority": "Medium",
+          "impact": 7,
+          "effort": 2,
+          "riceScore": 28,
+          "region": {
+            "x": 15,
+            "y": 5,
+            "width": 70,
+            "height": 12,
+            "label": "Hero H1"
+          }
+        }
+      ],
+      "copywriting": {
+        "headline": "Stop Guessing Ad Fit. Analyze Instantly.",
+        "subheadline": "Paste your ad copy and scan your landing page to discover visual, pricing, and message mismatches in seconds.",
+        "cta": "Analyze Fit Free",
+        "hero": "The automated CRO audit tool that makes every paid click count. Instantly spot mismatches and fix conversion leaks.",
+        "benefits": "• Instant visual & message audits\n• RICE-prioritized suggestions\n• Auto A/B test generator\n• Competitor comparison dashboards",
+        "faq": "Q: How does the analyzer scrape pages?\nA: We run Playwright to capture the page content and check visual details.",
+        "testimonials": "“AdFit AI identified a critical pricing mismatch that boosted our conversions by 32% in one week.” - Sarah K., CMO",
+        "guarantee": "100% money-back guarantee. If you don’t spot actionable CRO leaks, we will refund your plan.",
+        "pricingCopy": "$49/month for unlimited campaigns. No credit card required to start."
+      }
+    },
+    "experiments": [
+      {
+        "hypothesis": "Adding a secondary self-serve CTA above-the-fold will capture low-friction traffic that bounces on the Demo form.",
+        "variantA": "Primary CTA: \"Book a Demo\"",
+        "variantB": "Primary CTA: \"Book a Demo\" + Secondary CTA: \"Try Free Trial\"",
+        "metric": "Click-Through Rate to sign up",
+        "traffic": "50% split to 10k users",
+        "duration": "14 days"
+      },
+      {
+        "hypothesis": "Echoing the exact ad title in the H1 headline will lower instant bounce rates.",
+        "variantA": "H1: \"Supercharge Your Marketing Ops\"",
+        "variantB": "H1: \"Automate Your Ad Fit Analysis in Seconds\"",
+        "metric": "Above-the-fold bounce rate",
+        "traffic": "50% split to 5k users",
+        "duration": "10 days"
+      }
+    ],
+    "chats": []
+  }
+]
