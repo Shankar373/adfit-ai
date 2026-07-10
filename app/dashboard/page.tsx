@@ -25,6 +25,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const router = useRouter();
 
   const loadData = async () => {
@@ -34,6 +35,7 @@ export default function Dashboard() {
       if (data.analyses) {
         setAnalyses(data.analyses);
         setStats(data.stats);
+        setIsDemoMode(!!data.isDemoMode);
       }
     } catch (err) {
       console.error('Failed to load dashboard data', err);
@@ -101,7 +103,11 @@ export default function Dashboard() {
             A
           </Link>
           <span className="font-semibold text-lg tracking-tight font-heading">AdFit AI</span>
-          <span className="px-2 py-0.5 bg-slate-900 border border-slate-800 text-slate-400 text-[10px] rounded-full">Developer Guest Mode</span>
+          {isDemoMode ? (
+            <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] rounded-full font-semibold animate-pulse shadow-sm shadow-amber-500/10">Demo Mode</span>
+          ) : (
+            <span className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-[10px] rounded-full font-semibold">Live Mode</span>
+          )}
         </div>
 
         <Link 

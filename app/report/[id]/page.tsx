@@ -72,6 +72,7 @@ export default function ReportDetail() {
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'audit' | 'copywriter' | 'experiments' | 'competitor'>('audit');
   
   // Copilot Chat States
@@ -94,6 +95,7 @@ export default function ReportDetail() {
       try {
         const res = await fetch(`/api/history`);
         const result = await res.json();
+        setIsDemoMode(!!result.isDemoMode);
         const found = result.analyses?.find((a: any) => a.id === id);
         if (found) {
           setData(found);
@@ -236,7 +238,12 @@ export default function ReportDetail() {
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div className="hidden sm:block">
-            <div className="text-xs text-slate-500">AdFit Fit Report</div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">AdFit Fit Report</span>
+              {isDemoMode && (
+                <span className="px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[8px] rounded font-semibold animate-pulse">Demo</span>
+              )}
+            </div>
             <div className="text-sm font-bold text-slate-200 truncate max-w-xs">{landingPageUrl}</div>
           </div>
         </div>
@@ -472,6 +479,11 @@ export default function ReportDetail() {
                                 <div>
                                   <strong className="text-slate-400">Business Impact:</strong> {p.businessImpact}
                                 </div>
+                                {p.expectedConversionLift && (
+                                  <div>
+                                    <strong className="text-slate-400">Expected Conversion Lift:</strong> <span className="text-emerald-400 font-semibold">{p.expectedConversionLift}</span>
+                                  </div>
+                                )}
                                 <div className="p-3 bg-emerald-950/10 border border-emerald-900/20 rounded-xl mt-2 text-slate-200">
                                   <strong className="text-emerald-400 font-semibold">Suggested Fix:</strong> {p.suggestedFix}
                                 </div>

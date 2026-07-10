@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { scrapeUrl } from '@/services/scraper';
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
+import Groq from 'groq-sdk';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,16 +31,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-    const isMock = !openaiApiKey && !anthropicApiKey;
+    const groqApiKey = process.env.GROQ_API_KEY;
 
-    if (isMock) {
-      // Mock comparison
+    if (!groqApiKey) {
+      // Mock comparison for Demo Mode
       const mockComparison = {
         headline: `Competitor uses a Benefit-Led H1: "${competitorScraped.h1s[0] || 'Double Your Leads'}", while your page has: "${landingScraped.h1s[0] || 'Welcome to Our Product'}".`,
         offer: 'Competitor highlights a free tier; your landing page offers no trial or free level.',
-        pricing: 'Competitor starts at $29/mo; yours is unlisted (contact sales).',
+        pricing: 'Competitor pricing starts at $29/mo; yours is unlisted (contact sales).',
         trust: 'Competitor displays G2 badges; your page has no social proof.',
         cta: 'Competitor has clear orange CTA buttons; yours are dark gray and low-contrast.',
         positioning: 'Competitor positions as an accessible self-serve tool; you position as B2B enterprise.',
@@ -87,27 +84,15 @@ Output ONLY a JSON block adhering to this structure:
 }
     `;
 
-    let jsonResponse = '';
-
-    if (openaiApiKey) {
-      const openai = new OpenAI({ apiKey: openaiApiKey });
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'user', content: prompt }]
-      });
-      jsonResponse = response.choices[0].message.content || '{}';
-    } else if (anthropicApiKey) {
-      const anthropic = new Anthropic({ apiKey: anthropicApiKey });
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
-        max_tokens: 1500,
-        messages: [{ role: 'user', content: prompt }]
-      });
-      jsonResponse = response.content[0].type === 'text' ? response.content[0].text : '{}';
-    }
-
+    const groq = new Groq({ apiKey: groqApiKey });
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: prompt }]
+    });
+    const jsonResponse = response.choices[0]?.message?.content || '{}';
     const comparison = JSON.parse(jsonResponse);
+
     return new Response(JSON.stringify({ comparison }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

@@ -10,7 +10,7 @@ AdFit AI is a production-grade, AI-powered Conversion Rate Optimization (CRO) au
 graph TD
     Client[Next.js Client (App Router)] <--> |SSE Stream / HTTP JSON| API[Next.js API Handler]
     API --> |URL Extraction| Scraper[Playwright & Cheerio Engine]
-    API --> |Direct SDK Call| LLM[OpenAI / Anthropic Orchestrator]
+    API --> |Direct SDK Call| LLM[Groq Llama 3.3 Orchestrator]
     API <--> |ORM Client| Prisma[Prisma ORM]
     Prisma <--> |PostgreSQL| Supabase[(Supabase DB)]
     API <--> |Local fallback| JSONDB[(db.json storage)]
@@ -21,10 +21,10 @@ graph TD
 ## Key Features
 
 1. **Two-Stage Scraper**: Spins up headless browser sandboxes with **Playwright** to load JS-dynamic pages, extract metas, headlines, CTAs, testimonials, guarantees, pricing models, and capture screenshots. Falls back to **Cheerio** for execution in serverless Vercel environments.
-2. **AI Vision & Text OCR**: Directly integrates OpenAI and Anthropic SDKs (no wrappers) to parse ad screenshots, extract visual hierarchy, analyze brand colors, detect promotional offers, and measure alignment.
+2. **AI Llama Vision & Text OCR**: Directly integrates the official **Groq SDK** (no wrappers) to parse ad screenshots with `llama-3.2-11b-vision-preview`, extract visual hierarchy, brand colors, promotional offers, and measure alignment.
 3. **RICE-Prioritized Checklists**: Every identified conversion issue is auto-scored on Impact, Confidence, and Effort, sorting recommendations by highest RICE priority.
 4. **Interactive Bounding Box Overlays**: Displays Playwright/Vision screenshots in the UI and maps coordinates to absolute boxes. Hovering over a card highlights its location on the screenshot.
-5. **Interactive Report Copilot**: Chat directly with an AI assistant trained on the report context. Ask it to write CSS tweaks or rewrite landing page sections.
+5. **Interactive Report Copilot**: Chat directly with an AI assistant trained on the report context using `llama-3.3-70b-versatile` over SSE streams.
 6. **PDF Reports Exporter**: Server-side client-ready A4 PDF generator using **pdfkit** to format executive summaries, match details, problems, and copy rewrites.
 7. **Zero-Setup Developer Guest Mode**: Runs immediately out of the box using a local JSON file-based database (`db.json`) if no Postgres string is present.
 
@@ -53,7 +53,7 @@ graph TD
 ├── prisma/
 │   └── schema.prisma       # Database design schema models
 ├── services/
-│   ├── analyzer.ts         # OpenAI & Anthropic orchestrator
+│   ├── analyzer.ts         # Groq SDK orchestrator & mock fallback
 │   └── scraper.ts          # Playwright & Cheerio crawler
 └── __tests__/
     └── storage.test.ts     # CRUD storage unit tests
@@ -84,8 +84,7 @@ Copy `.env.example` to `.env` or edit the existing `.env` file at root level:
 DATABASE_URL="postgresql://username:password@your-supabase-host:5432/postgres?schema=public"
 
 # AI Provider Access Keys
-OPENAI_API_KEY="your-openai-key"
-ANTHROPIC_API_KEY="your-anthropic-key"
+GROQ_API_KEY="your-groq-key"
 ```
 
 ### 4. Database Setup (If using Supabase/PostgreSQL):
@@ -133,5 +132,5 @@ npx vitest
 
 1. Set `NODE_ENV=production`.
 2. Configure `DATABASE_URL` pointing to Supabase PostgreSQL connection string pooler.
-3. Configure `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` for high-rate limit tiers.
+3. Configure `GROQ_API_KEY` for high-rate limit production inference.
 4. Set up Vercel serverless timeout limits (standard function limits are 10s on hobby, configure streaming or check connection endpoints).

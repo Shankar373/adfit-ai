@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { storage } from '@/lib/storage';
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
+import Groq from 'groq-sdk';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +10,7 @@ export async function POST(req: NextRequest) {
   const writer = writable.getWriter();
 
   try {
-    const { analysisId, chatId, message, provider = 'openai', model } = await req.json();
+    const { analysisId, chatId, message, model } = await req.json();
 
     if (!analysisId || !chatId || !message) {
       return new Response(JSON.stringify({ error: 'Missing parameters' }), {
@@ -36,20 +35,10 @@ export async function POST(req: NextRequest) {
     // Save User message immediately
     await storage.addChatMessage(analysisId, chatId, 'user', message);
 
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-    
-    let selectedProvider: 'openai' | 'anthropic' | 'mock' = 'mock';
-    if (openaiApiKey && anthropicApiKey) {
-      selectedProvider = provider;
-    } else if (openaiApiKey) {
-      selectedProvider = 'openai';
-    } else if (anthropicApiKey) {
-      selectedProvider = 'anthropic';
-    }
+    const groqApiKey = process.env.GROQ_API_KEY;
 
-    if (selectedProvider === 'mock') {
-      // Mock streaming response for guest mode
+    if (!groqApiKey) {
+      // Mock streaming response for Demo Mode
       (async () => {
         const mockResponses = [
           `Regarding your landing page at **${analysis.landingPageUrl}**, the first issue to address is definitely the CTA alignment.\n\n`,
@@ -60,7 +49,7 @@ export async function POST(req: NextRequest) {
 
         for (const chunk of mockResponses) {
           writer.write(encoder.encode(chunk));
-          await new Promise(r => setTimeout(r, 400));
+          await new Promise(r => setTimeout(r, 300));
         }
 
         // Save Assistant message to history
@@ -78,7 +67,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Direct SDK execution with context injection
+    // Direct Groq execution with context injection
     const systemPrompt = `
 You are AdFit AI, an elite Conversion Rate Optimization (CRO) copywriter and growth consultant assistant.
 You are assisting a client with their Ad-to-Landing Page Fit Audit Report.
@@ -113,67 +102,35 @@ Instructions:
       { role: 'user', content: message }
     ];
 
+    const groq = new Groq({ apiKey: groqApiKey });
     let fullAssistantResponse = '';
 
-    if (selectedProvider === 'openai') {
-      const openai = new OpenAI({ apiKey: openaiApiKey });
-      (async () => {
-        try {
-          const stream = await openai.chat.completions.create({
-            model: model || 'gpt-4o',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...chatMessages as any
-            ],
-            stream: true
-          });
+    (async () => {
+      try {
+        const stream = await groq.chat.completions.create({
+          model: model || 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...chatMessages as any
+          ],
+          stream: true
+        });
 
-          for await (const chunk of stream) {
-            const text = chunk.choices[0]?.delta?.content || '';
-            fullAssistantResponse += text;
-            writer.write(encoder.encode(text));
-          }
-
-          // Save assistant reply
-          await storage.addChatMessage(analysisId, chatId, 'assistant', fullAssistantResponse);
-          writer.close();
-        } catch (streamErr: any) {
-          writer.write(encoder.encode(`\n[Error during stream: ${streamErr.message}]`));
-          writer.close();
+        for await (const chunk of stream) {
+          const text = chunk.choices[0]?.delta?.content || '';
+          fullAssistantResponse += text;
+          writer.write(encoder.encode(text));
         }
-      })();
-    } else {
-      const anthropic = new Anthropic({ apiKey: anthropicApiKey });
-      (async () => {
-        try {
-          const stream = await anthropic.messages.create({
-            model: model || 'claude-3-5-sonnet-20240620',
-            max_tokens: 1500,
-            system: systemPrompt,
-            messages: chatMessages.map(m => ({
-              role: m.role as 'user' | 'assistant',
-              content: m.content
-            })),
-            stream: true
-          });
 
-          for await (const event of stream) {
-            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-              const text = event.delta.text;
-              fullAssistantResponse += text;
-              writer.write(encoder.encode(text));
-            }
-          }
-
-          // Save assistant reply
-          await storage.addChatMessage(analysisId, chatId, 'assistant', fullAssistantResponse);
-          writer.close();
-        } catch (streamErr: any) {
-          writer.write(encoder.encode(`\n[Error during stream: ${streamErr.message}]`));
-          writer.close();
-        }
-      })();
-    }
+        // Save assistant reply
+        await storage.addChatMessage(analysisId, chatId, 'assistant', fullAssistantResponse);
+        writer.close();
+      } catch (streamErr: any) {
+        console.error('[Groq Chat Stream Error]:', streamErr);
+        writer.write(encoder.encode(`\n[Groq Stream Error: ${streamErr.message || String(streamErr)}]`));
+        writer.close();
+      }
+    })();
 
     return new Response(readable, {
       headers: {

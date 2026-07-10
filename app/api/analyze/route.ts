@@ -11,7 +11,6 @@ const analyzeSchema = z.object({
   screenshotUrl: z.string().optional(),
   landingPageUrl: z.string().url('Invalid landing page URL'),
   competitorUrl: z.string().url('Invalid competitor URL').optional().or(z.literal('')),
-  provider: z.enum(['openai', 'anthropic']).default('openai'),
   model: z.string().optional()
 });
 
@@ -75,7 +74,6 @@ export async function POST(req: NextRequest) {
             screenshotUrl: input.screenshotUrl,
             landingPageUrl: input.landingPageUrl,
             competitorUrl: input.competitorUrl || undefined,
-            provider: input.provider,
             model: input.model
           },
           scrapedLanding,

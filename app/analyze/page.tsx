@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -66,14 +66,25 @@ export default function NewAnalysis() {
   const [competitorUrl, setCompetitorUrl] = useState('');
   const [screenshotBase64, setScreenshotBase64] = useState<string | null>(null);
   const [screenshotName, setScreenshotName] = useState<string | null>(null);
-  const [provider, setProvider] = useState<'openai' | 'anthropic'>('openai');
   const [dragActive, setDragActive] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   // Streaming Analysis States
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [currentStatus, setCurrentStatus] = useState('');
   const [streamedSummary, setStreamedSummary] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/history')
+      .then(res => res.json())
+      .then(data => {
+        if (data.isDemoMode) {
+          setIsDemoMode(true);
+        }
+      })
+      .catch(err => console.error('Failed to load config', err));
+  }, []);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -134,8 +145,7 @@ export default function NewAnalysis() {
           adCopy: adCopy || undefined,
           screenshotUrl: screenshotBase64 || undefined,
           landingPageUrl,
-          competitorUrl: competitorUrl || undefined,
-          provider
+          competitorUrl: competitorUrl || undefined
         })
       });
 
@@ -338,33 +348,15 @@ export default function NewAnalysis() {
                   </div>
                 </div>
 
-                {/* AI SETTINGS */}
-                <div className="glass-panel p-5 rounded-2xl glow-indigo flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <BrainCircuit className="w-5 h-5 text-indigo-400 shrink-0" />
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-200 font-heading">Multi-LLM Orchestration</h4>
-                      <p className="text-[10px] text-slate-500 font-light">Select the core cognitive model to scan alignment</p>
-                    </div>
+                {isDemoMode && (
+                  <div className="glass-panel p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-400 text-xs flex items-center gap-2.5 shadow-md shadow-amber-500/5">
+                    <span className="flex h-2.5 w-2.5 relative shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                    </span>
+                    <span><strong>Demo Mode Active:</strong> GROQ_API_KEY is not configured. The analyzer will run in offline simulation mode.</span>
                   </div>
-
-                  <div className="flex bg-slate-950 border border-slate-800 p-1 rounded-xl">
-                    <button
-                      type="button"
-                      onClick={() => setProvider('openai')}
-                      className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${provider === 'openai' ? 'bg-indigo-500 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                      OpenAI (GPT-4o)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setProvider('anthropic')}
-                      className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${provider === 'anthropic' ? 'bg-indigo-500 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                      Anthropic (Claude 3.5)
-                    </button>
-                  </div>
-                </div>
+                )}
 
               </div>
 

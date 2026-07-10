@@ -7,8 +7,9 @@ export async function GET(req: NextRequest) {
   try {
     const list = await storage.getAnalyses();
     const stats = await storage.getStats();
+    const isDemoMode = !process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY && !process.env.GROQ_API_KEY;
 
-    return new Response(JSON.stringify({ analyses: list, stats }), {
+    return new Response(JSON.stringify({ analyses: list, stats, isDemoMode }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
