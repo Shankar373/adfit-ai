@@ -15,6 +15,7 @@ describe('Hybrid Storage Engine Tests', () => {
     }
     // Set up a clean empty local test db
     fs.writeFileSync(dbPath, JSON.stringify([], null, 2));
+    storage._resetMemoryDb();
   });
 
   afterEach(() => {
@@ -24,6 +25,7 @@ describe('Hybrid Storage Engine Tests', () => {
     } else if (fs.existsSync(dbPath)) {
       fs.unlinkSync(dbPath);
     }
+    storage._resetMemoryDb();
   });
 
   it('should save and retrieve analyses successfully', async () => {

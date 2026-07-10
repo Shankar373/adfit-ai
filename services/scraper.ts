@@ -29,11 +29,16 @@ export interface ScrapedData {
 export async function scrapeUrl(url: string, id: string): Promise<ScrapedData> {
   console.log(`[Scraper] Starting scrape for ${url} (ID: ${id})`);
   
-  // Ensure screenshot directory exists
   const publicDir = path.join(process.cwd(), 'public');
   const screenshotDir = path.join(publicDir, 'screenshots');
-  if (!fs.existsSync(screenshotDir)) {
-    fs.mkdirSync(screenshotDir, { recursive: true });
+
+  // Ensure screenshot directory exists
+  try {
+    if (!fs.existsSync(screenshotDir)) {
+      fs.mkdirSync(screenshotDir, { recursive: true });
+    }
+  } catch (e) {
+    console.warn('[Scraper] Read-only directory structure detected. Screenshot storage skipped.');
   }
 
   const screenshotFilename = `screenshot-${id}.png`;
@@ -62,8 +67,12 @@ export async function scrapeUrl(url: string, id: string): Promise<ScrapedData> {
     await page.waitForTimeout(1000);
     
     // Take screenshot of above-the-fold
-    await page.screenshot({ path: absoluteScreenshotPath });
-    console.log(`[Scraper] Screenshot captured at ${absoluteScreenshotPath}`);
+    try {
+      await page.screenshot({ path: absoluteScreenshotPath });
+      console.log(`[Scraper] Screenshot captured at ${absoluteScreenshotPath}`);
+    } catch (err) {
+      console.warn('[Scraper] Screenshot file write skipped (read-only filesystem).');
+    }
 
     // Evaluate and extract content
     const data = await page.evaluate(() => {

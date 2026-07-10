@@ -93,22 +93,43 @@ export interface LocalAnalysis {
 }
 
 // Local File Helper Functions
+let memoryDb: LocalAnalysis[] = [];
+let hasLoadedMemory = false;
+
 function readLocalDb(): LocalAnalysis[] {
+  if (memoryDb.length > 0) {
+    return memoryDb;
+  }
+
   if (!fs.existsSync(LOCAL_DB_PATH)) {
-    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify([], null, 2));
-    return [];
+    try {
+      fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify([], null, 2));
+    } catch (e) {
+      console.warn('[Storage] Read-only environment, unable to create db.json on disk. Using in-memory store.');
+    }
+    return memoryDb;
   }
   try {
     const content = fs.readFileSync(LOCAL_DB_PATH, 'utf-8');
-    return JSON.parse(content || '[]');
+    const parsed = JSON.parse(content || '[]');
+    if (!hasLoadedMemory) {
+      memoryDb = parsed;
+      hasLoadedMemory = true;
+    }
+    return memoryDb;
   } catch (e) {
     console.error('[Storage] Error reading local db.json, returning empty array', e);
-    return [];
+    return memoryDb;
   }
 }
 
 function writeLocalDb(data: LocalAnalysis[]) {
-  fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(data, null, 2));
+  memoryDb = data;
+  try {
+    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.warn('[Storage] Write failed (probably serverless read-only filesystem). Saving in-memory only.', e);
+  }
 }
 
 // Unified Storage API
@@ -462,5 +483,10 @@ export const storage = {
       commonIssuesCount: issues,
       dailyUsage
     };
+  },
+
+  _resetMemoryDb() {
+    memoryDb = [];
+    hasLoadedMemory = false;
   }
 };
