@@ -73,6 +73,13 @@ export default function ReportDetail() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    // Remove after 3s
+    setTimeout(() => setToast(null), 3000);
+  };
   const [activeTab, setActiveTab] = useState<'audit' | 'copywriter' | 'experiments' | 'competitor'>('audit');
   
   // Copilot Chat States
@@ -114,16 +121,99 @@ export default function ReportDetail() {
     fetchReport();
   }, [id]);
 
-  const copyToClipboard = (text: string, sectionId: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedSection(sectionId);
-    setTimeout(() => setCopiedSection(null), 2000);
+  const copyToClipboard = async (text: string, sectionId: string) => {
+    if (!document.hasFocus()) {
+      showToast('Click anywhere on the page and try again.', 'error');
+      return;
+    }
+
+    const fallbackCopySimple = (val: string) => {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = val;
+        textArea.style.position = 'fixed';
+        textArea.style.top = '0';
+        textArea.style.left = '0';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (successful) {
+          setCopiedSection(sectionId);
+          showToast('Copied copywriting text to clipboard!');
+          setTimeout(() => setCopiedSection(null), 2000);
+        } else {
+          showToast('Failed to copy copy text.', 'error');
+        }
+      } catch (err) {
+        console.error('Text fallback copy failed:', err);
+        showToast('Error copy text.', 'error');
+      }
+    };
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        setCopiedSection(sectionId);
+        showToast('Copied copywriting text to clipboard!');
+        setTimeout(() => setCopiedSection(null), 2000);
+      } else {
+        fallbackCopySimple(text);
+      }
+    } catch (err) {
+      fallbackCopySimple(text);
+    }
   };
 
-  const copyShareLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
+  const copyShareLink = async () => {
+    const url = window.location.href;
+    
+    if (!document.hasFocus()) {
+      showToast('Click anywhere on the page and try again.', 'error');
+      return;
+    }
+
+    const fallbackCopy = (text: string) => {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.top = '0';
+        textArea.style.left = '0';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (successful) {
+          setCopiedLink(true);
+          showToast('Share link copied to clipboard!');
+          setTimeout(() => setCopiedLink(false), 2000);
+        } else {
+          showToast('Failed to copy link. Please manually copy the URL.', 'error');
+        }
+      } catch (err) {
+        console.error('Fallback copy failed:', err);
+        showToast('Error copying link.', 'error');
+      }
+    };
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+        setCopiedLink(true);
+        showToast('Share link copied to clipboard!');
+        setTimeout(() => setCopiedLink(false), 2000);
+      } else {
+        fallbackCopy(url);
+      }
+    } catch (err) {
+      console.warn('Clipboard API failed, trying fallback...', err);
+      fallbackCopy(url);
+    }
   };
 
   const handlePDFExport = async () => {
@@ -143,12 +233,14 @@ export default function ReportDetail() {
         document.body.appendChild(a);
         a.click();
         a.remove();
+        showToast('PDF report exported successfully!');
       } else {
-        alert('Failed to generate PDF export.');
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || 'Failed to generate PDF export.', 'error');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('Error exporting PDF.');
+      showToast(e.message || 'Error exporting PDF.', 'error');
     } finally {
       setExportingPDF(false);
     }
@@ -225,8 +317,16 @@ export default function ReportDetail() {
     );
   }
 
-  const { report, landingPageUrl, competitorUrl } = data;
-  const scoreColor = report.score > 70 ? 'stroke-emerald-500 text-emerald-400' : report.score > 45 ? 'stroke-amber-500 text-amber-400' : 'stroke-red-500 text-red-400';
+  const { report, landingPageUrl, competitorUrl, experiments, competitor } = data;
+  const safeScore = report?.score ?? 0;
+  const safeConfidence = report?.confidence ?? 'Medium';
+  const safeDetails = report?.details ?? {};
+  const safeProblems = report?.problems ?? [];
+  const safeCopywriting = report?.copywriting ?? {};
+  const safeCompetitor = competitor ?? report?.competitor;
+  const safeExperiments = experiments ?? report?.experiments ?? [];
+
+  const scoreColor = safeScore > 70 ? 'stroke-emerald-500 text-emerald-400' : safeScore > 45 ? 'stroke-amber-500 text-amber-400' : 'stroke-red-500 text-red-400';
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
@@ -301,19 +401,19 @@ export default function ReportDetail() {
                     fill="transparent"
                     className={`transition-all duration-1000 ${scoreColor}`}
                     strokeDasharray="263.8"
-                    strokeDashoffset={263.8 - (263.8 * report.score) / 100}
+                    strokeDashoffset={263.8 - (263.8 * safeScore) / 100}
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-extrabold text-white font-heading leading-none">{report.score}</span>
+                  <span className="text-3xl font-extrabold text-white font-heading leading-none">{safeScore}</span>
                   <span className="text-[10px] text-slate-500 uppercase font-semibold mt-1">out of 100</span>
                 </div>
               </div>
 
               <div className="mt-4 flex items-center gap-1.5 text-xs">
                 <span className="text-slate-400">Confidence:</span>
-                <span className={`font-semibold ${report.confidence === 'High' ? 'text-emerald-400' : report.confidence === 'Medium' ? 'text-amber-400' : 'text-red-400'}`}>
-                  {report.confidence}
+                <span className={`font-semibold ${safeConfidence === 'High' ? 'text-emerald-400' : safeConfidence === 'Medium' ? 'text-amber-400' : 'text-red-400'}`}>
+                  {safeConfidence}
                 </span>
               </div>
             </div>
@@ -323,7 +423,7 @@ export default function ReportDetail() {
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-heading">Category Alignment Scores</h3>
               
               <div className="grid grid-cols-2 gap-4">
-                {Object.entries(report.details).map(([cat, val]: any) => {
+                {Object.entries(safeDetails).map(([cat, val]: any) => {
                   const barColor = val > 70 ? 'bg-emerald-500' : val > 45 ? 'bg-amber-500' : 'bg-red-500';
                   return (
                     <div key={cat} className="space-y-1">
@@ -355,7 +455,7 @@ export default function ReportDetail() {
                 />
 
                 {/* Overlaid Coordinate Highlight Boxes */}
-                {report.problems.map((p: any, idx: number) => {
+                {safeProblems.map((p: any, idx: number) => {
                   if (!p.region) return null;
                   const isHovered = hoveredProblemIdx === idx;
                   return (
@@ -428,7 +528,7 @@ export default function ReportDetail() {
                       <FileText className="w-4 h-4" />
                       <span>Executive Summary</span>
                     </h3>
-                    <ReportMarkdown text={report.summary} />
+                    <ReportMarkdown text={report?.summary || ''} />
                   </div>
 
                   {/* Prioritized Recommendations list */}
@@ -436,7 +536,7 @@ export default function ReportDetail() {
                     <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider font-heading px-2">RICE-Prioritized Optimization Checklist</h3>
                     
                     <div className="space-y-3">
-                      {report.problems.map((p: any, idx: number) => {
+                      {safeProblems.map((p: any, idx: number) => {
                         const isHovered = hoveredProblemIdx === idx;
                         return (
                           <div 
@@ -508,7 +608,7 @@ export default function ReportDetail() {
                   <div className="text-xs text-slate-500 px-2 uppercase font-bold tracking-wide">Suggested Landing Page Copy Revisions</div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {Object.entries(report.copywriting).map(([section, text]: any) => (
+                    {Object.entries(safeCopywriting).map(([section, text]: any) => (
                       <div key={section} className="glass-panel p-5 rounded-2xl flex flex-col justify-between gap-4">
                         <div>
                           <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider font-heading mb-2">{section}</h4>
@@ -540,7 +640,7 @@ export default function ReportDetail() {
                   <div className="text-xs text-slate-500 px-2 uppercase font-bold tracking-wide">Recommended A/B Testing Experiments</div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {report.experiments.map((exp: any, index: number) => (
+                    {safeExperiments.map((exp: any, index: number) => (
                       <div key={index} className="glass-panel p-5 rounded-2xl space-y-4">
                         <div className="flex items-center gap-2 border-b border-slate-900 pb-3">
                           <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 text-xs font-bold font-heading">
@@ -704,6 +804,15 @@ export default function ReportDetail() {
         )}
 
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl border flex items-center gap-2 shadow-lg backdrop-blur-md transition-all duration-300 ${toast.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-emerald-500/5' : 'bg-red-500/10 border-red-500/30 text-red-400 shadow-red-500/5'}`}>
+          {toast.type === 'success' ? <Check className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+          <span className="text-xs font-semibold">{toast.message}</span>
+        </div>
+      )}
+
     </div>
   );
 }

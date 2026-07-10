@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { report, landingPageUrl, competitorUrl, createdAt } = data;
+    const { report, landingPageUrl, competitorUrl, createdAt, experiments } = data;
 
     // Generate PDF using PDFKit
     const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
@@ -41,9 +41,9 @@ export async function POST(req: NextRequest) {
       // Meta Information
       doc.fillColor('#0f172a').fontSize(12).font('Helvetica-Bold').text('AUDIT SUMMARY', 50, 80);
       doc.fontSize(10).font('Helvetica')
-         .text(`Target URL: ${landingPageUrl}`, 50, 100)
-         .text(`Created on: ${new Date(createdAt).toLocaleDateString()}`, 50, 115)
-         .text(`Overall Fit Score: ${report.score}/100 (${report.confidence} Confidence)`, 50, 130);
+         .text(`Target URL: ${landingPageUrl || 'N/A'}`, 50, 100)
+         .text(`Created on: ${createdAt ? new Date(createdAt).toLocaleDateString() : new Date().toLocaleDateString()}`, 50, 115)
+         .text(`Overall Fit Score: ${report.score || 0}/100 (${report.confidence || 'Medium'} Confidence)`, 50, 130);
       
       if (competitorUrl) {
         doc.text(`Competitor URL: ${competitorUrl}`, 50, 145);
@@ -54,16 +54,16 @@ export async function POST(req: NextRequest) {
       // Category Scores
       doc.fillColor('#0f172a').fontSize(12).font('Helvetica-Bold').text('CATEGORY ALIGNMENT SCORES', 50, 180);
       let yOffset = 205;
-      const details = report.details;
+      const details = report.details || {};
       const categories = [
-        { label: 'Headline Match', val: details.headline },
-        { label: 'Offer Consistency', val: details.offer },
-        { label: 'Call-To-Action Fit', val: details.cta },
-        { label: 'Trust signals', val: details.trust },
-        { label: 'Social Proof Presence', val: details.socialProof },
-        { label: 'Objection Handling', val: details.objectionHandling },
-        { label: 'Above-the-fold Quality', val: details.aboveFold },
-        { label: 'Pricing Transparency', val: details.pricing }
+        { label: 'Headline Match', val: details.headline ?? 0 },
+        { label: 'Offer Consistency', val: details.offer ?? 0 },
+        { label: 'Call-To-Action Fit', val: details.cta ?? 0 },
+        { label: 'Trust signals', val: details.trust ?? 0 },
+        { label: 'Social Proof Presence', val: details.socialProof ?? 0 },
+        { label: 'Objection Handling', val: details.objectionHandling ?? 0 },
+        { label: 'Above-the-fold Quality', val: details.aboveFold ?? 0 },
+        { label: 'Pricing Transparency', val: details.pricing ?? 0 }
       ];
 
       categories.forEach((cat, index) => {
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
         // Draw progress bar outline
         doc.fillColor('#64748b').fontSize(10).font('Helvetica').text(`${cat.label}: ${cat.val}/100`, col, yOffset);
         doc.rect(col, yOffset + 12, 200, 8).fillColor('#f1f5f9').fill();
-        const fillWidth = (cat.val / 100) * 200;
+        const fillWidth = (Math.max(0, Math.min(100, cat.val)) / 100) * 200;
         const color = cat.val > 70 ? '#10b981' : cat.val > 45 ? '#f59e0b' : '#ef4444';
         doc.rect(col, yOffset + 12, fillWidth, 8).fillColor(color).fill();
       });
@@ -85,81 +85,91 @@ export async function POST(req: NextRequest) {
       doc.fillColor('#0f172a').fontSize(12).font('Helvetica-Bold').text('MARKETING EXECUTIVE SUMMARY', 50, yOffset + 55);
       
       // Clean Markdown tags for simple PDF display
-      const cleanSummary = report.summary
+      const cleanSummary = (report.summary || '')
         .replace(/#+\s+/g, '') // remove headings markers
         .replace(/\*\*/g, '')  // remove bold markers
         .replace(/\*/g, '')    // remove bullets/italics markers
         .trim();
 
       doc.fillColor('#334155').fontSize(10).font('Helvetica')
-         .text(cleanSummary, 50, yOffset + 75, { width: 495, align: 'left', lineGap: 3 });
+         .text(cleanSummary || 'No summary description provided.', 50, yOffset + 75, { width: 495, align: 'left', lineGap: 3 });
 
       // Add a page for Problems & Recommendations
-      doc.addPage();
-      doc.fillColor('#0f172a').fontSize(14).font('Helvetica-Bold').text('RICE-PRIORITIZED OPTIMIZATION ISSUES', 50, 40);
-      
-      let problemY = 70;
-      report.problems.forEach((p, index) => {
-        // Prevent overflow
-        if (problemY > 650) {
-          doc.addPage();
-          problemY = 40;
-        }
-
-        doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold').text(`${index + 1}. ${p.problem}`, 50, problemY);
-        doc.fillColor('#64748b').fontSize(9).font('Helvetica').text(`Priority: ${p.priority} | RICE: ${p.riceScore} (Impact: ${p.impact}, Effort: ${p.effort})`, 50, problemY + 15);
+      const problems = report.problems || [];
+      if (problems.length > 0) {
+        doc.addPage();
+        doc.fillColor('#0f172a').fontSize(14).font('Helvetica-Bold').text('RICE-PRIORITIZED OPTIMIZATION ISSUES', 50, 40);
         
-        doc.fillColor('#334155').fontSize(9).font('Helvetica')
-           .text(`Evidence: ${p.evidence}`, 50, problemY + 30, { width: 495 })
-           .text(`Explanation: ${p.explanation}`, 50, doc.y + 4, { width: 495 })
-           .text(`Business Impact: ${p.businessImpact}`, 50, doc.y + 4, { width: 495 })
-           .text(`Suggested Fix: ${p.suggestedFix}`, 50, doc.y + 4, { width: 495 });
+        let problemY = 70;
+        problems.forEach((p, index) => {
+          // Prevent overflow
+          if (problemY > 650) {
+            doc.addPage();
+            problemY = 40;
+          }
 
-        problemY = doc.y + 20;
-        doc.moveTo(50, problemY - 10).lineTo(545, problemY - 10).strokeColor('#f1f5f9').stroke();
-      });
+          doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold').text(`${index + 1}. ${p.problem || 'Conversion Issue'}`, 50, problemY);
+          doc.fillColor('#64748b').fontSize(9).font('Helvetica').text(`Priority: ${p.priority || 'Medium'} | RICE: ${p.riceScore || 0} (Impact: ${p.impact || 0}, Effort: ${p.effort || 0})`, 50, problemY + 15);
+          
+          doc.fillColor('#334155').fontSize(9).font('Helvetica')
+             .text(`Evidence: ${p.evidence || 'N/A'}`, 50, problemY + 30, { width: 495 })
+             .text(`Explanation: ${p.explanation || 'N/A'}`, 50, doc.y + 4, { width: 495 })
+             .text(`Business Impact: ${p.businessImpact || 'N/A'}`, 50, doc.y + 4, { width: 495 })
+             .text(`Suggested Fix: ${p.suggestedFix || 'N/A'}`, 50, doc.y + 4, { width: 495 });
+
+          problemY = doc.y + 20;
+          doc.moveTo(50, problemY - 10).lineTo(545, problemY - 10).strokeColor('#f1f5f9').stroke();
+        });
+      }
 
       // Add page for Copywriting & Experiments
+      const copywriting = report.copywriting || {};
       doc.addPage();
       doc.fillColor('#0f172a').fontSize(14).font('Helvetica-Bold').text('AI COPYWRITER REVISIONS', 50, 40);
       
       let copyY = 70;
-      const copy = report.copywriting;
       const copySections = [
-        { title: 'Headline Rewrite', val: copy.headline },
-        { title: 'Subheadline Rewrite', val: copy.subheadline },
-        { title: 'CTA Button Rewrite', val: copy.cta },
-        { title: 'Hero Area Rewrite', val: copy.hero },
-        { title: 'Benefit Rephrasing', val: copy.benefits },
-        { title: 'Pricing Copy', val: copy.pricingCopy }
+        { title: 'Headline Rewrite', val: copywriting.headline },
+        { title: 'Subheadline Rewrite', val: copywriting.subheadline },
+        { title: 'CTA Button Rewrite', val: copywriting.cta },
+        { title: 'Hero Area Rewrite', val: copywriting.hero },
+        { title: 'Benefit Rephrasing', val: copywriting.benefits },
+        { title: 'Pricing Copy', val: copywriting.pricingCopy }
       ];
 
       copySections.forEach((c) => {
-        if (copyY > 700) {
-          doc.addPage();
-          copyY = 40;
+        if (c.val) {
+          if (copyY > 700) {
+            doc.addPage();
+            copyY = 40;
+          }
+          doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold').text(c.title, 50, copyY);
+          doc.fillColor('#334155').fontSize(9).font('Helvetica-Oblique').text(`"${c.val}"`, 60, copyY + 14, { width: 485 });
+          copyY = doc.y + 15;
         }
-        doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold').text(c.title, 50, copyY);
-        doc.fillColor('#334155').fontSize(9).font('Helvetica-Oblique').text(`"${c.val}"`, 60, copyY + 14, { width: 485 });
-        copyY = doc.y + 15;
       });
 
       // Experiments Section
-      if (data.experiments && data.experiments.length > 0) {
+      const safeExperiments = experiments || [];
+      if (safeExperiments.length > 0) {
         copyY += 20;
+        if (copyY > 650) {
+          doc.addPage();
+          copyY = 40;
+        }
         doc.fillColor('#0f172a').fontSize(14).font('Helvetica-Bold').text('RECOMMENDED A/B EXPERIMENTS', 50, copyY);
         copyY += 25;
 
-        data.experiments.forEach((exp, idx) => {
+        safeExperiments.forEach((exp, idx) => {
           if (copyY > 650) {
             doc.addPage();
             copyY = 40;
           }
-          doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold').text(`Experiment ${idx + 1}: ${exp.hypothesis}`, 50, copyY, { width: 495 });
+          doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold').text(`Experiment ${idx + 1}: ${exp.hypothesis || 'CRO Hypothesis'}`, 50, copyY, { width: 495 });
           doc.fillColor('#334155').fontSize(9).font('Helvetica')
-             .text(`Variant A (Control): ${exp.variantA}`, 60, copyY + 16, { width: 485 })
-             .text(`Variant B (Challenger): ${exp.variantB}`, 60, doc.y + 4, { width: 485 })
-             .text(`Success Metric: ${exp.metric} | Duration: ${exp.duration}`, 60, doc.y + 4, { width: 485 });
+             .text(`Variant A (Control): ${exp.variantA || 'Current design'}`, 60, copyY + 16, { width: 485 })
+             .text(`Variant B (Challenger): ${exp.variantB || 'Optimized design'}`, 60, doc.y + 4, { width: 485 })
+             .text(`Success Metric: ${exp.metric || 'Conversion Rate'} | Duration: ${exp.duration || '7 days'}`, 60, doc.y + 4, { width: 485 });
           copyY = doc.y + 20;
         });
       }
