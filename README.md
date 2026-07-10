@@ -5,16 +5,8 @@ AdFit AI is a production-grade, AI-powered Conversion Rate Optimization (CRO) au
 ---
 
 ## Architecture Diagram
+<img width="574" height="132" alt="image" src="https://github.com/user-attachments/assets/cca17ae2-af14-40f9-a259-ad8fa758e2ec" />
 
-```mermaid
-graph TD
-    Client[Next.js Client (App Router)] <--> |SSE Stream / HTTP JSON| API[Next.js API Handler]
-    API --> |URL Extraction| Scraper[Playwright & Cheerio Engine]
-    API --> |Direct SDK Call| LLM[Groq Llama 3.3 Orchestrator]
-    API <--> |ORM Client| Prisma[Prisma ORM]
-    Prisma <--> |PostgreSQL| Supabase[(Supabase DB)]
-    API <--> |Local fallback| JSONDB[(db.json storage)]
-```
 
 ---
 
