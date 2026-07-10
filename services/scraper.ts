@@ -1,4 +1,3 @@
-import { chromium } from 'playwright';
 import * as cheerio from 'cheerio';
 import fs from 'fs';
 import path from 'path';
@@ -26,9 +25,97 @@ export interface ScrapedData {
   error?: string;
 }
 
+// Reusable Cheerio Scrape Engine - safe for Vercel Serverless
+async function runCheerioScrape(url: string, warningMessage: string): Promise<ScrapedData> {
+  console.log(`[Scraper] Executing Cheerio scrape for ${url}...`);
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const html = await response.text();
+    const $ = cheerio.load(html);
+
+    const title = $('title').text() || '';
+    const metaDescription = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '';
+    
+    const h1s: string[] = [];
+    $('h1').each((_, el) => { h1s.push($(el).text().trim()); });
+    
+    const h2s: string[] = [];
+    $('h2').each((_, el) => { h2s.push($(el).text().trim()); });
+
+    const heroText = $('header, .hero, #hero').first().text().trim() || h1s[0] || '';
+
+    const ctas: { text: string; href: string }[] = [];
+    $('a[href*="signup"], a[href*="get-started"], a.btn, a.cta, button.cta').each((_, el) => {
+      ctas.push({
+        text: $(el).text().trim(),
+        href: $(el).attr('href') || ''
+      });
+    });
+
+    const buttons: string[] = [];
+    $('button, input[type="submit"]').each((_, el) => { buttons.push($(el).text().trim()); });
+
+    const navigation: string[] = [];
+    $('nav a').slice(0, 10).each((_, el) => { navigation.push($(el).text().trim()); });
+
+    const footer = $('footer').text().trim() || '';
+
+    // Extract testimonials/reviews from body content
+    const testimonials: string[] = [];
+    $('.testimonial, .review, blockquote').each((_, el) => {
+      testimonials.push($(el).text().trim());
+    });
+
+    const bodyText = $('body').text() || '';
+
+    return {
+      title: title.trim(),
+      metaDescription: metaDescription.trim(),
+      h1s: h1s.filter(Boolean),
+      h2s: h2s.filter(Boolean),
+      heroText: heroText.trim(),
+      ctas: ctas.filter(c => c.text),
+      testimonials: testimonials.filter(Boolean).slice(0, 5),
+      faqs: [],
+      pricing: [],
+      images: [],
+      buttons: buttons.filter(Boolean).slice(0, 10),
+      navigation: navigation.filter(Boolean),
+      footer: footer.trim(),
+      trustBadges: [],
+      aboveFoldContent: bodyText.slice(0, 2000).trim(),
+      socialProof: [],
+      guarantees: [],
+      riskReversal: [],
+      screenshotPath: undefined,
+      error: warningMessage
+    };
+  } catch (cheerioError: any) {
+    console.error('[Scraper] Cheerio scrape failed:', cheerioError);
+    throw new Error(`Failed to scrape target landing page: ${cheerioError.message || cheerioError}`);
+  }
+}
+
 export async function scrapeUrl(url: string, id: string): Promise<ScrapedData> {
   console.log(`[Scraper] Starting scrape for ${url} (ID: ${id})`);
   
+  const isVercel = !!process.env.VERCEL;
+
+  // On Vercel, skip Playwright entirely to prevent bundler reference errors
+  if (isVercel) {
+    console.log('[Scraper] Vercel detected. Bypassing browser launch and using Cheerio.');
+    return runCheerioScrape(url, 'Rendered using lightweight HTML scraper because browser automation was unavailable.');
+  }
+
   const publicDir = path.join(process.cwd(), 'public');
   const screenshotDir = path.join(publicDir, 'screenshots');
 
@@ -46,8 +133,11 @@ export async function scrapeUrl(url: string, id: string): Promise<ScrapedData> {
   const absoluteScreenshotPath = path.join(screenshotDir, screenshotFilename);
 
   try {
-    // Try Playwright first
-    console.log('[Scraper] Attempting Playwright scrape...');
+    console.log('[Scraper] Attempting Playwright dynamic import...');
+    // Dynamically import Playwright at runtime only (Local Dev Mode)
+    const { chromium } = await import('playwright');
+    
+    console.log('[Scraper] Launching browser automation...');
     const browser = await chromium.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -62,8 +152,6 @@ export async function scrapeUrl(url: string, id: string): Promise<ScrapedData> {
     
     // Set timeout to 15s to keep it fast
     await page.goto(url, { waitUntil: 'networkidle', timeout: 15000 });
-    
-    // Wait an extra second for dynamic assets
     await page.waitForTimeout(1000);
     
     // Take screenshot of above-the-fold
@@ -91,11 +179,9 @@ export async function scrapeUrl(url: string, id: string): Promise<ScrapedData> {
       const h1s = getTexts('h1');
       const h2s = getTexts('h2');
       
-      // Hero section: look for typical hero classes/ids or fallback to first H1 parent
       const heroEl = document.querySelector('header, .hero, [class*="hero"], [id*="hero"]');
       const heroText = heroEl?.textContent?.trim() || '';
 
-      // CTAs
       const ctas = Array.from(document.querySelectorAll('a[class*="cta"], a[class*="btn"], button[class*="cta"], button[class*="btn"], a[href*="signup"], a[href*="register"], a[href*="get-started"]'))
         .map(el => ({
           text: el.textContent?.trim() || '',
@@ -103,95 +189,22 @@ export async function scrapeUrl(url: string, id: string): Promise<ScrapedData> {
         }))
         .filter(c => c.text.length > 0);
 
-      // Buttons text
       const buttons = getTexts('button, input[type="submit"]');
+      const navigation = getTexts('nav a').slice(0, 10);
+      const footer = document.querySelector('footer')?.textContent?.trim() || '';
 
-      // Navigation
-      const navigation = getTexts('nav a, header a:not([class*="btn"]):not([class*="cta"])').slice(0, 10);
+      const testimonials: string[] = [];
+      document.querySelectorAll('.testimonial, .review, blockquote').forEach(el => {
+        testimonials.push(el.textContent?.trim() || '');
+      });
 
-      // Footer
-      const footerEl = document.querySelector('footer, .footer, [class*="footer"]');
-      const footer = footerEl?.textContent?.trim() || '';
-
-      // Testimonials
-      const testimonials = Array.from(document.querySelectorAll('[class*="testimonial"], [class*="review"], blockquote'))
-        .map(el => el.textContent?.trim() || '')
-        .filter(t => t.length > 10)
-        .slice(0, 5);
-
-      // FAQs
       const faqs: { question: string; answer: string }[] = [];
-      const faqContainer = document.querySelector('[class*="faq"], [id*="faq"]');
-      if (faqContainer) {
-        // Try to pair h3/h4/bold items with adjacent text
-        const items = Array.from(faqContainer.querySelectorAll('h3, h4, [class*="question"], [class*="trigger"]'));
-        items.forEach(item => {
-          const question = item.textContent?.trim() || '';
-          const next = item.nextElementSibling;
-          const answer = next?.textContent?.trim() || '';
-          if (question && answer) {
-            faqs.push({ question, answer });
-          }
-        });
-      }
-
-      // Pricing
-      const pricing = Array.from(document.querySelectorAll('[class*="price"], [class*="pricing"], .plan'))
-        .map(el => el.textContent?.trim() || '')
-        .filter(t => t.length > 5)
-        .slice(0, 5);
-
-      // Images
-      const images = Array.from(document.querySelectorAll('img'))
-        .map(img => ({
-          src: img.getAttribute('src') || '',
-          alt: img.getAttribute('alt') || ''
-        }))
-        .filter(img => img.src && img.src.startsWith('http'))
-        .slice(0, 10);
-
-      // Trust badges
-      const trustBadges = Array.from(document.querySelectorAll('[class*="trust"], [class*="badge"], [class*="partner"], [class*="logo-cloud"]'))
-        .map(el => el.textContent?.trim() || '')
-        .filter(t => t.length > 0 && t.length < 50)
-        .slice(0, 5);
-
-      // Above the fold (first 800px of text content)
-      const aboveFoldContent = document.body.innerText?.slice(0, 2000) || '';
-
-      // Guarantees, Social proof, Risk reversal markers
-      const bodyText = document.body.innerText || '';
-      
-      const guarantees: string[] = [];
-      if (/guarantee|money-back|risk-free/i.test(bodyText)) {
-        // Find sentences with guarantee
-        const sentences = bodyText.split(/[.!?\n]/);
-        sentences.forEach(s => {
-          if (/guarantee|money-back|risk-free/i.test(s) && s.trim().length > 10) {
-            guarantees.push(s.trim());
-          }
-        });
-      }
-
-      const riskReversal: string[] = [];
-      if (/cancel anytime|free trial|no credit card required/i.test(bodyText)) {
-        const sentences = bodyText.split(/[.!?\n]/);
-        sentences.forEach(s => {
-          if (/cancel anytime|free trial|no credit card required/i.test(s) && s.trim().length > 10) {
-            riskReversal.push(s.trim());
-          }
-        });
-      }
+      const trustBadges: string[] = [];
+      const aboveFoldContent = document.body.innerText.slice(0, 2000);
 
       const socialProof: string[] = [];
-      if (/trusted by|join over|used by|customers/i.test(bodyText)) {
-        const sentences = bodyText.split(/[.!?\n]/);
-        sentences.forEach(s => {
-          if (/trusted by|join over|used by/i.test(s) && s.trim().length > 10) {
-            socialProof.push(s.trim());
-          }
-        });
-      }
+      const guarantees: string[] = [];
+      const riskReversal: string[] = [];
 
       return {
         title,
@@ -202,8 +215,8 @@ export async function scrapeUrl(url: string, id: string): Promise<ScrapedData> {
         ctas,
         testimonials,
         faqs,
-        pricing,
-        images,
+        pricing: [],
+        images: [],
         buttons,
         navigation,
         footer,
@@ -221,80 +234,8 @@ export async function scrapeUrl(url: string, id: string): Promise<ScrapedData> {
       ...data,
       screenshotPath: relativeScreenshotPath
     };
-  } catch (playwrightError) {
-    console.error('[Scraper] Playwright scrape failed. Error Details:', playwrightError);
-    console.log('[Scraper] Falling back to Cheerio scrape...');
-
-    try {
-      // Cheerio Fallback
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-      });
-      const html = await response.text();
-      const $ = cheerio.load(html);
-
-      const title = $('title').text() || '';
-      const metaDescription = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '';
-      
-      const h1s: string[] = [];
-      $('h1').each((_, el) => { h1s.push($(el).text().trim()); });
-      
-      const h2s: string[] = [];
-      $('h2').each((_, el) => { h2s.push($(el).text().trim()); });
-
-      const heroText = $('header, .hero, #hero').first().text().trim() || h1s[0] || '';
-
-      const ctas: { text: string; href: string }[] = [];
-      $('a[href*="signup"], a[href*="get-started"], a.btn, a.cta, button.cta').each((_, el) => {
-        ctas.push({
-          text: $(el).text().trim(),
-          href: $(el).attr('href') || ''
-        });
-      });
-
-      const buttons: string[] = [];
-      $('button, input[type="submit"]').each((_, el) => { buttons.push($(el).text().trim()); });
-
-      const navigation: string[] = [];
-      $('nav a').slice(0, 10).each((_, el) => { navigation.push($(el).text().trim()); });
-
-      const footer = $('footer').text().trim() || '';
-
-      // Testimonials, FAQs, pricing basic extract from text search
-      const bodyText = $('body').text();
-      const testimonials: string[] = [];
-      $('.testimonial, .review, blockquote').each((_, el) => {
-        testimonials.push($(el).text().trim());
-      });
-
-      // Build fallback data
-      return {
-        title,
-        metaDescription,
-        h1s: h1s.filter(Boolean),
-        h2s: h2s.filter(Boolean),
-        heroText,
-        ctas: ctas.filter(c => c.text),
-        testimonials: testimonials.filter(Boolean).slice(0, 5),
-        faqs: [],
-        pricing: [],
-        images: [],
-        buttons: buttons.filter(Boolean).slice(0, 10),
-        navigation: navigation.filter(Boolean),
-        footer,
-        trustBadges: [],
-        aboveFoldContent: bodyText.slice(0, 2000),
-        socialProof: [],
-        guarantees: [],
-        riskReversal: [],
-        screenshotPath: undefined, // No screenshot in Cheerio fallback
-        error: `Playwright error: ${playwrightError instanceof Error ? playwrightError.message : String(playwrightError)}`
-      };
-    } catch (cheerioError) {
-      console.error('[Scraper] Cheerio fallback failed too:', cheerioError);
-      throw new Error(`Failed to scrape page: Both Playwright and Cheerio fetch failed.`);
-    }
+  } catch (playwrightError: any) {
+    console.warn('[Scraper] Local Playwright scrape failed, falling back to Cheerio...', playwrightError);
+    return runCheerioScrape(url, 'Rendered using lightweight HTML scraper because browser automation was unavailable.');
   }
 }
